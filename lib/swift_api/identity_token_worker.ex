@@ -7,17 +7,53 @@ defmodule SwiftApi.IdentityTokenWorker do
     Agent.start_link(fn -> %{} end, name: __MODULE__)
   end
 
-  def update_token(token) do
-    Agent.update(__MODULE__, & Map.merge(&1, %{token: token}))
-  end
-
-  def update_identity_info(info) do
-    Agent.update(__MODULE__, & Map.merge(&1, %{identity: info}))
-  end
+  def update_token(token), do: Agent.update(__MODULE__, & Map.merge(&1, %{token: token}))
 
   def get_token do
     data = Agent.get(__MODULE__, & &1)
     data[:token]
+  end
+
+  @doc """
+  установить ключ генерации временных ссылок для указанного контейнера.
+
+  имеется в виду заголовок "X-Container-Meta-Temp-Url-Key" в случае для конкретного контейнера,
+  или "X-Account-Meta-Temp-Url-Key" в случае общего ключа на всём аккаунте.
+
+  в случае, когда первый параметр - контейнер - nil или пустая строка, устанавливается общий ключ,
+  который по идее должен браться из информации всего аккаунта.
+  в таком случае сохранение производится в корневой `temp_url_key`.
+
+  если указан конкретный контейнер, сохранение будет произведено в `container_name->temp_url_key`
+  """
+  def update_temp_url_key("", temp_url_key) do
+    Agent.update(__MODULE__, & Map.merge(&1, %{temp_url_key: temp_url_key}))
+  end
+  def update_temp_url_key(nil, temp_url_key), do: update_temp_url_key("", temp_url_key)
+  def update_temp_url_key(container, temp_url_key) do
+    Agent.update(__MODULE__, & Map.merge(&1, %{container => %{temp_url_key: temp_url_key}}))
+  end
+
+  @doc """
+  вернуть ключ генерации временных ссылок для указанного контейнера.
+
+  имеется в виду заголовок "X-Container-Meta-Temp-Url-Key" в случае для конкретного контейнера,
+  или "X-Account-Meta-Temp-Url-Key" в случае общего ключа на всём аккаунте.
+
+  В случае, когда по конкретному контейнеру взять ключ не удаётся, или функция вызывается без
+  параметров (или контейнером-пустой строкой), возвращается (при наличии) ключ аккаунта.
+  """
+  def get_temp_url_key do
+    data = Agent.get(__MODULE__, & &1)
+    data[:temp_url_key]
+  end
+  def get_temp_url_key(""), do: get_temp_url_key()
+  def get_temp_url_key(container) do
+    data = Agent.get(__MODULE__, & &1)
+    case data[container][:temp_url_key] do
+      nil -> get_temp_url_key()
+      key -> key
+    end
   end
 
   def get_swift_url(time_now \\ Timex.now) do
@@ -39,8 +75,11 @@ defmodule SwiftApi.IdentityTokenWorker do
     end
   end
 
+  def update_identity_info(info), do: Agent.update(__MODULE__, & Map.merge(&1, %{identity: info}))
+
   def get_identity_info do
-    :ok
+    data = Agent.get(__MODULE__, & &1)
+    data[:identity]
   end
 
   def check_time_validity(time_now \\ Timex.now) do

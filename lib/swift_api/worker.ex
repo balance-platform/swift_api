@@ -1,6 +1,6 @@
 defmodule SwiftApi.Worker do
   @moduledoc false
-#  use GenServer
+  #  use GenServer
   @name SwiftApiWorker
 
   # client api
@@ -111,12 +111,12 @@ defmodule SwiftApi.Worker do
       {:ok, %HTTPoison.Response{status_code: 404}} ->
         {:error, :not_found}
       {:ok, %HTTPoison.Response{body: "", status_code: 201}} -> {:ok, ""}
-      {:ok, %HTTPoison.Response{status_code: 404}}
+                                                                {:ok, %HTTPoison.Response{status_code: 404}}
       {:ok, response} -> case Poison.decode(response.body) do
                            {:ok, map} -> {:ok, map}
                            {:error, msg} ->
-                              IO.inspect(response)
-                              {:error, response.body}
+                             IO.inspect(response)
+                             {:error, response.body}
                            {:error, :invalid, descr} ->
                              IO.inspect(response)
                              {:error, response.body}
