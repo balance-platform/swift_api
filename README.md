@@ -23,14 +23,13 @@ be found at [https://hexdocs.pm/swift_api](https://hexdocs.pm/swift_api).
 
 
 ```elixir
-client = %SwiftApi.Client{user_name: username,
-                          password: password,
-                          domain_id: domain_id,
-                          url: url,
-                          project_id: project_id,
-                          ca_certificate_path: ca_certificate_path,
-                          container: container,
-                          temp_url_key: temp_url_key}
+client = %SwiftApi.Client{user_name: "os-rgsb-prod-rgsb-export",
+                          password: "4ef19c227bd963ae0f8",
+                          domain_id: "af578a7d3daa49fe922100ff11581fc8",
+                          url: "https://auth.os.dc-cr.b-pl.pro",
+                          project_id: "rgsb-prod",
+                          ca_certificate_path: "/mili/ca.crt",
+                          container: "documents"}
 container = "mytest"
 filename = "test_data.html"
 SwiftApi.Worker.container_create(client, container)

@@ -1,4 +1,5 @@
 defmodule SwiftApi.Executor do
+  require Logger
   @moduledoc """
   Пример работы с api:
   ```
@@ -88,7 +89,12 @@ defmodule SwiftApi.Executor do
         SwiftApi.IdentityTokenWorker.update_token(token)
         SwiftApi.IdentityTokenWorker.update_identity_info(Poison.decode!(body))
         {:ok, "authorized"}
-      error -> {:error, error}
+      {:error, %HTTPoison.Error{reason: :nxdomain}} ->
+        Logger.error("NXDOMAIN error for: #{identify_url}. Check nslookup -type=ns _domain_")
+        {:error, :nxdomain}
+      error ->
+        Logger.error("#{identify_url}: #{inspect(error)}")
+        {:error, error}
     end
   end
 
@@ -205,14 +211,18 @@ defmodule SwiftApi.Executor do
   defp _object_temp_url(client, container, file, ttl) do
     # запрашиваем детали аккаунта и контейнера для получения temp_url_key на указанный контейнер или общий на аккаунт
     check_details_for_temp_key(client, container)
-    [url, path] = SwiftApi.IdentityTokenWorker.get_swift_url() |> String.split("/v1/")
-    filepath = "/v1/#{path}/#{container}/#{file}"
-    {temp_url_sig, temp_url_expires} = temp_url_params(
-      ttl,
-      SwiftApi.IdentityTokenWorker.get_temp_url_key(container),
-      filepath
-    )
-    "#{url}#{filepath}?temp_url_sig=#{temp_url_sig}&temp_url_expires=#{temp_url_expires}"
+    case SwiftApi.IdentityTokenWorker.get_swift_url() do
+      nil -> nil
+      swift_url ->
+        [url, path] = String.split(swift_url, "/v1/")
+        filepath = "/v1/#{path}/#{container}/#{file}"
+        {temp_url_sig, temp_url_expires} = temp_url_params(
+          ttl,
+          SwiftApi.IdentityTokenWorker.get_temp_url_key(container),
+          filepath
+        )
+        "#{url}#{filepath}?temp_url_sig=#{temp_url_sig}&temp_url_expires=#{temp_url_expires}"
+    end
   end
 
   @doc """
