@@ -2,13 +2,13 @@ defmodule SwiftApiTest do
   use ExUnit.Case
   doctest SwiftApi
 
-#  test "greets the world" do
-#    assert SwiftApi.hello() == :world
-#  end
+  #  test "greets the world" do
+  #    assert SwiftApi.hello() == :world
+  #  end
 
   def identity_info do
-    Poison.decode! """
-  {
+    Poison.decode!("""
+    {
         "token": {
             "audit_ids": [
                 "Sbog6V_AS1uExRPd5pn6XA"
@@ -438,13 +438,16 @@ defmodule SwiftApiTest do
             }
         }
     }
-    """
+    """)
   end
 
   test "swift url search" do
     SwiftApi.IdentityTokenWorker.update_identity_info(identity_info())
-    time_now = Timex.parse!("2019-01-23T14:56:31.000000Z", "{ISO:Extended}") # one hour before expires_at
-    "https://object.balance-pl.ru/v1/AUTH_b31fb563c0b644c8a6a6c1da43258e88" = SwiftApi.IdentityTokenWorker.get_swift_url(time_now)
+    # one hour before expires_at
+    time_now = Timex.parse!("2019-01-23T14:56:31.000000Z", "{ISO:Extended}")
+
+    "https://object.balance-pl.ru/v1/AUTH_b31fb563c0b644c8a6a6c1da43258e88" =
+      SwiftApi.IdentityTokenWorker.get_swift_url(time_now)
   end
 
   test "swift url search when no data" do
@@ -462,7 +465,8 @@ defmodule SwiftApiTest do
   end
 
   test "check time and validity one hour before expires_at" do
-    time_now = Timex.parse!("2019-01-23T14:56:31.000000Z", "{ISO:Extended}") # one hour before expires_at
+    # one hour before expires_at
+    time_now = Timex.parse!("2019-01-23T14:56:31.000000Z", "{ISO:Extended}")
     SwiftApi.IdentityTokenWorker.update_identity_info(identity_info())
     true = SwiftApi.IdentityTokenWorker.check_time_validity(time_now)
   end

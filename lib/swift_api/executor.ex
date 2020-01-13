@@ -1,5 +1,6 @@
 defmodule SwiftApi.Executor do
   require Logger
+
   @moduledoc """
   Пример работы с api:
   ```
@@ -41,44 +42,46 @@ defmodule SwiftApi.Executor do
 
   при неудачной аутентификации - когда код статуса отличен от 200, 201, 202, через три таких попытки возвращается ошибка
   """
-  def identify(client, 3), do: {:error, "Can't authorize"}
+  def identify(_client, 3), do: {:error, "Can't authorize"}
+
   def identify(client, tries) do
     case identify(client) do
       {:ok, str} -> {:ok, str}
       {:error, _} -> identify(client, tries + 1)
     end
   end
+
   defp identify(client) do
-    request_body = Poison.encode!(
-      %{
-        "auth": %{
-          "identity": %{
-            "methods": ["password"],
-            "password": %{
-              "user": %{
-                "name": client.user_name,
-                "password": client.password,
-                "domain": %{
-                  "id": client.domain_id
+    request_body =
+      Poison.encode!(%{
+        auth: %{
+          identity: %{
+            methods: ["password"],
+            password: %{
+              user: %{
+                name: client.user_name,
+                password: client.password,
+                domain: %{
+                  id: client.domain_id
                 }
               }
             }
           },
-          "scope": %{
-            "project": %{
-              "id": client.project_id
+          scope: %{
+            project: %{
+              id: client.project_id
             }
           }
         }
-      }
-    )
+      })
 
     identify_url = "#{client.url}/v3/auth/tokens"
 
-    opts = case client.ca_certificate_path do
-      nil -> []
-      path -> [{:ssl_options, [{:cacertfile, path}]}]
-    end
+    opts =
+      case client.ca_certificate_path do
+        nil -> []
+        path -> [{:ssl_options, [{:cacertfile, path}]}]
+      end
 
     headers = ["Content-Type": "application/json"]
 
@@ -89,9 +92,11 @@ defmodule SwiftApi.Executor do
         SwiftApi.IdentityTokenWorker.update_token(token)
         SwiftApi.IdentityTokenWorker.update_identity_info(Poison.decode!(body))
         {:ok, "authorized"}
+
       {:error, %HTTPoison.Error{reason: :nxdomain}} ->
         Logger.error("NXDOMAIN error for: #{identify_url}. Check nslookup -type=ns _domain_")
         {:error, :nxdomain}
+
       error ->
         Logger.error("#{identify_url}: #{inspect(error)}")
         {:error, error}
@@ -132,6 +137,7 @@ defmodule SwiftApi.Executor do
   def get(client, "", file), do: get(client, "#{client.container}/#{file}")
   def get(client, nil, file), do: get(client, "#{client.container}/#{file}")
   def get(client, container, file), do: get(client, "#{container}/#{file}")
+
   @doc """
   прочитать файл из хранилища
 
@@ -150,7 +156,9 @@ defmodule SwiftApi.Executor do
           {:ok, _} -> _get(client, SwiftApi.IdentityTokenWorker.get_swift_url(), path)
           fail -> fail
         end
-      swift_url -> _get(client, swift_url, path)
+
+      swift_url ->
+        _get(client, swift_url, path)
     end
   end
 
@@ -171,6 +179,7 @@ defmodule SwiftApi.Executor do
   def put(client, "", file, content), do: put(client, "#{client.container}/#{file}", content)
   def put(client, nil, file, content), do: put(client, "#{client.container}/#{file}", content)
   def put(client, container, file, content), do: put(client, "#{container}/#{file}", content)
+
   @doc """
   положить файл в хранилище
 
@@ -189,7 +198,9 @@ defmodule SwiftApi.Executor do
           {:ok, _} -> _put(client, SwiftApi.IdentityTokenWorker.get_swift_url(), path, content)
           fail -> fail
         end
-      swift_url -> _put(client, swift_url, path, content)
+
+      swift_url ->
+        _put(client, swift_url, path, content)
     end
   end
 
@@ -207,20 +218,29 @@ defmodule SwiftApi.Executor do
   ```
   """
   def object_temp_url(client, file, ttl), do: object_temp_url(client, client.container, file, ttl)
-  def object_temp_url(client, container, file, ttl), do: _object_temp_url(client, container, file, ttl)
+
+  def object_temp_url(client, container, file, ttl),
+    do: _object_temp_url(client, container, file, ttl)
+
   defp _object_temp_url(client, container, file, ttl) do
     # запрашиваем детали аккаунта и контейнера для получения temp_url_key на указанный контейнер или общий на аккаунт
     check_details_for_temp_key(client, container)
+
     case SwiftApi.IdentityTokenWorker.get_swift_url() do
-      nil -> nil
+      nil ->
+        nil
+
       swift_url ->
         [url, path] = String.split(swift_url, "/v1/")
         filepath = "/v1/#{path}/#{container}/#{file}"
-        {temp_url_sig, temp_url_expires} = temp_url_params(
-          ttl,
-          SwiftApi.IdentityTokenWorker.get_temp_url_key(container),
-          filepath
-        )
+
+        {temp_url_sig, temp_url_expires} =
+          temp_url_params(
+            ttl,
+            SwiftApi.IdentityTokenWorker.get_temp_url_key(container),
+            filepath
+          )
+
         "#{url}#{filepath}?temp_url_sig=#{temp_url_sig}&temp_url_expires=#{temp_url_expires}"
     end
   end
@@ -237,26 +257,35 @@ defmodule SwiftApi.Executor do
   """
   def temp_url_params(ttl, key, url, method \\ "GET") do
     temp_url_expires = :os.system_time(:seconds) + ttl
-    temp_url_sig = :crypto.hmac(:sha, key, "#{method}\n#{temp_url_expires}\n#{url}")
-                   |> Base.encode16
-                   |> String.downcase
+
+    temp_url_sig =
+      :crypto.hmac(:sha, key, "#{method}\n#{temp_url_expires}\n#{url}")
+      |> Base.encode16()
+      |> String.downcase()
+
     {temp_url_sig, temp_url_expires}
   end
 
   # path должен быть в формате "контейнер/путь", т.е. начинаться НЕ со слэша
-  defp _get(client, swift_url, path) do
+  defp _get(_client, swift_url, path) do
     final_url = "#{swift_url}/#{path}"
     container = String.split(path, "/") |> Enum.at(0)
     headers = ["X-Auth-Token": SwiftApi.IdentityTokenWorker.get_token()]
-    http_params = ["format": "json"]
+    http_params = [format: "json"]
     options = [params: http_params]
+
     case HTTPoison.get(final_url, headers, options) do
       {:ok, %HTTPoison.Response{status_code: status_code, body: body, headers: headers}}
       when status_code == 200 or status_code == 201 or status_code == 202 ->
-        set_temp_url_key(container, headers) # из заголовка сохраняем ключ генерации временных ссылок
+        # из заголовка сохраняем ключ генерации временных ссылок
+        set_temp_url_key(container, headers)
         parse_json_body(body)
-      {:ok, response} -> {:error, response}
-      {:error, error} -> {:error, error}
+
+      {:ok, response} ->
+        {:error, response}
+
+      {:error, error} ->
+        {:error, error}
     end
   end
 
@@ -264,27 +293,43 @@ defmodule SwiftApi.Executor do
   defp _put(client, swift_url, path, content) do
     final_url = "#{swift_url}/#{path}"
     container = String.split(path, "/") |> Enum.at(0)
+
     # вызываем детали контейнера/аккаунта для получения информации о ключе генерации временной ссылки
     check_details_for_temp_key(client, container)
+
     headers = [
       "X-Auth-Token": SwiftApi.IdentityTokenWorker.get_token(),
       "X-Container-Meta-Temp-URL-Key": SwiftApi.IdentityTokenWorker.get_temp_url_key(container)
     ]
-    http_params = ["format": "json"]
+
+    http_params = [format: "json"]
     options = [params: http_params]
+
     case HTTPoison.put(final_url, content, headers, options) do
-      {:ok, %HTTPoison.Response{status_code: status_code, body: body, headers: headers}}
-      when status_code == 200 or status_code == 201 or status_code == 202 -> parse_json_body(body)
-      {:ok, response} -> {:error, response}
-      {:error, error} -> {:error, error}
+      {:ok, %HTTPoison.Response{status_code: status_code, body: body} = response} ->
+        if status_code in [200, 201, 202] do
+          parse_json_body(body)
+        else
+          {:error, response}
+        end
+
+      {:ok, response} ->
+        {:error, response}
+
+      {:error, error} ->
+        {:error, error}
     end
   end
 
   # вынуть и сохранить из заголовка ключ генерации временной ссылки контейнера или аккаунта
   defp set_temp_url_key(container, headers) do
-    case List.keyfind(headers, "X-Container-Meta-Temp-Url-Key", 0) || List.keyfind(headers, "X-Account-Meta-Temp-Url-Key", 0) do
-      {_, temp_url_key} -> SwiftApi.IdentityTokenWorker.update_temp_url_key(container, temp_url_key)
-      nil -> nil
+    case List.keyfind(headers, "X-Container-Meta-Temp-Url-Key", 0) ||
+           List.keyfind(headers, "X-Account-Meta-Temp-Url-Key", 0) do
+      {_, temp_url_key} ->
+        SwiftApi.IdentityTokenWorker.update_temp_url_key(container, temp_url_key)
+
+      nil ->
+        nil
     end
   end
 
@@ -298,8 +343,8 @@ defmodule SwiftApi.Executor do
   defp parse_json_body(body) do
     case Poison.decode(body) do
       {:ok, map} -> {:ok, map}
-      {:error, descr} -> {:ok, body}
-      {:error, :invalid, descr} -> {:ok, body}
+      {:error, _descr} -> {:ok, body}
+      {:error, :invalid, _descr} -> {:ok, body}
     end
   end
 end

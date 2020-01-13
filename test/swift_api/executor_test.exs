@@ -441,39 +441,54 @@ defmodule SwiftApi.ExecutorTest do
 
   test "должен успешно авторизоваться" do
     with_mock HTTPoison,
-              [post: fn("https://example.ru/v3/auth/tokens", _body, _headers, hackney: _opts) ->
-                {:ok, %HTTPoison.Response{status_code: 200, body: identity_info(), headers: [{"X-Subject-Token", "token_example"}]}}
-              end] do
-      assert Executor.identify(%SwiftApi.Client{
-               user_name: "name",
-               password: "pwd",
-               domain_id: "did",
-               url: "https://example.ru",
-               project_id: "prid",
-               ca_certificate_path: "/path/ca.crt",
-               container: "nomatter"
-             }, 0) == {:ok, "authorized"}
+      post: fn "https://example.ru/v3/auth/tokens", _body, _headers, hackney: _opts ->
+        {:ok,
+         %HTTPoison.Response{
+           status_code: 200,
+           body: identity_info(),
+           headers: [{"X-Subject-Token", "token_example"}]
+         }}
+      end do
+      assert Executor.identify(
+               %SwiftApi.Client{
+                 user_name: "name",
+                 password: "pwd",
+                 domain_id: "did",
+                 url: "https://example.ru",
+                 project_id: "prid",
+                 ca_certificate_path: "/path/ca.crt",
+                 container: "nomatter"
+               },
+               0
+             ) == {:ok, "authorized"}
+
       assert SwiftApi.IdentityTokenWorker.get_token() == "token_example"
       assert SwiftApi.IdentityTokenWorker.get_identity_info() == Poison.decode!(identity_info())
-      time_now = Timex.parse!("2019-01-23T14:56:31.000000Z", "{ISO:Extended}") # one hour before expires_at
-      "https://object.balance-pl.ru/v1/AUTH_b31fb563c0b644c8a6a6c1da43258e88" = SwiftApi.IdentityTokenWorker.get_swift_url(time_now)
+      # one hour before expires_at
+      time_now = Timex.parse!("2019-01-23T14:56:31.000000Z", "{ISO:Extended}")
+
+      "https://object.balance-pl.ru/v1/AUTH_b31fb563c0b644c8a6a6c1da43258e88" =
+        SwiftApi.IdentityTokenWorker.get_swift_url(time_now)
     end
   end
 
   test "должен через три попытки выйти и вернуть ошибку" do
     with_mock HTTPoison,
-              [post: fn("https://example.ru/v3/auth/tokens", _body, _headers, hackney: _opts) ->
-                {:ok, %HTTPoison.Response{status_code: 404}}
-              end] do
-      assert Executor.identify(%SwiftApi.Client{
-               user_name: "name",
-               password: "pwd",
-               domain_id: "did",
-               url: "https://example.ru",
-               project_id: "prid",
-               ca_certificate_path: "/path/ca.crt",
-               container: "nomatter"
-             }, 0) == {:error, "Can't authorize"}
+      post: fn "https://example.ru/v3/auth/tokens", _body, _headers, hackney: _opts ->
+        {:ok, %HTTPoison.Response{status_code: 404}}
+      end do
+      assert Executor.identify(
+               %SwiftApi.Client{
+                 user_name: "name",
+                 password: "pwd",
+                 domain_id: "did",
+                 url: "https://example.ru",
+                 project_id: "prid",
+                 ca_certificate_path: "/path/ca.crt",
+                 container: "nomatter"
+               },
+               0
+             ) == {:error, "Can't authorize"}
     end
   end
 
