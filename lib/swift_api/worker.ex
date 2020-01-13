@@ -1,10 +1,10 @@
 defmodule SwiftApi.Worker do
   @moduledoc false
-  #  use GenServer
+
   @name SwiftApiWorker
 
-  # client api
-  # client = %SwiftApi.Client{}; SwiftApi.Worker.identity(client); SwiftApi.Worker.container_list(client, "")
+  require Logger
+
   def container_list(client) do
     container_list(client, client.container)
   end
@@ -63,7 +63,7 @@ defmodule SwiftApi.Worker do
         SwiftApi.IdentityTokenWorker.update_identity_info(Poison.decode!(body))
 
       error ->
-        IO.inspect(error)
+        Logger.info("SwiftApi.Worker got error on identity: #{inspect(error)}")
     end
   end
 
@@ -130,16 +130,16 @@ defmodule SwiftApi.Worker do
             {:ok, map}
 
           {:error, msg} ->
-            IO.inspect(response)
+            Logger.info("SwiftApi.Worker got error on _put: #{inspect(response)}")
             {:error, response.body}
 
           {:error, :invalid, descr} ->
-            IO.inspect(response)
+            Logger.info("SwiftApi.Worker got error on _put: #{inspect(response)}")
             {:error, response.body}
         end
 
       {:error, error} ->
-        IO.inspect(error)
+        Logger.info("SwiftApi.Worker got error on _put: #{inspect(error)}")
         {:error, error}
     end
   end
@@ -172,7 +172,7 @@ defmodule SwiftApi.Worker do
         end
 
       {:error, error} ->
-        IO.inspect(error)
+        Logger.info("SwiftApi.Worker got error on _get: #{inspect(error)}")
         {:error, error}
     end
   end
