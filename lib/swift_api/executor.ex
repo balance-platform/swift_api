@@ -357,7 +357,7 @@ defmodule SwiftApi.Executor do
         if status_code in [200, 201, 202] do
           parse_json_body(body)
         else
-          {:error, response}
+          {:ok, response}
         end
 
       {:ok, response} ->
