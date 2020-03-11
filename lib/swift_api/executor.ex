@@ -204,6 +204,20 @@ defmodule SwiftApi.Executor do
     end
   end
 
+  def delete(client, path) do
+    case SwiftApi.IdentityTokenWorker.get_swift_url() do
+      nil ->
+        case identify(client, 0) do
+          {:ok, _} -> _delete(client, SwiftApi.IdentityTokenWorker.get_swift_url(), path)
+          fail -> fail
+        end
+
+      swift_url ->
+        _delete(client, swift_url, path)
+    end
+  end
+
+
   @doc """
   получить временную ссылку на файл
 
@@ -306,6 +320,39 @@ defmodule SwiftApi.Executor do
     options = [params: http_params]
 
     case HTTPoison.put(final_url, content, headers, options) do
+      {:ok, %HTTPoison.Response{status_code: status_code, body: body} = response} ->
+        if status_code in [200, 201, 202] do
+          parse_json_body(body)
+        else
+          {:error, response}
+        end
+
+      {:ok, response} ->
+        {:error, response}
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+
+  # path должен быть в формате "контейнер/путь", т.е. начинаться НЕ со слэша
+  defp _delete(client, swift_url, path) do
+    final_url = "#{swift_url}/#{path}"
+    container = String.split(path, "/") |> Enum.at(0)
+
+    # вызываем детали контейнера/аккаунта для получения информации о ключе генерации временной ссылки
+    #    check_details_for_temp_key(client, container)
+
+    headers = [
+      "X-Auth-Token": SwiftApi.IdentityTokenWorker.get_token(),
+      "X-Container-Meta-Temp-URL-Key": SwiftApi.IdentityTokenWorker.get_temp_url_key(container)
+    ]
+
+    http_params = [format: "json"]
+    options = [params: http_params]
+
+    case HTTPoison.delete(final_url, headers, options) do
       {:ok, %HTTPoison.Response{status_code: status_code, body: body} = response} ->
         if status_code in [200, 201, 202] do
           parse_json_body(body)
