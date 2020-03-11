@@ -353,18 +353,9 @@ defmodule SwiftApi.Executor do
     options = [params: http_params]
 
     case HTTPoison.delete(final_url, headers, options) do
-      {:ok, %HTTPoison.Response{status_code: status_code, body: body} = response} ->
-        if status_code in [200, 201, 202] do
-          parse_json_body(body)
-        else
-          {:ok, response}
-        end
-
-      {:ok, response} ->
-        {:ok, response}
-
-      {:error, error} ->
-        {:error, error}
+      {:ok, %HTTPoison.Response{status_code: 204} = response} -> {:ok, response}
+      {:error, error} -> {:error, error}
+      {:ok, http_resposne_struct} -> {:error, http_resposne_struct}
     end
   end
 
