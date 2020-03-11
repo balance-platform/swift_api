@@ -361,7 +361,7 @@ defmodule SwiftApi.Executor do
         end
 
       {:ok, response} ->
-        {:error, response}
+        {:ok, response}
 
       {:error, error} ->
         {:error, error}
