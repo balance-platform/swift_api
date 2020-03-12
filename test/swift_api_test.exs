@@ -2,10 +2,6 @@ defmodule SwiftApiTest do
   use ExUnit.Case
   doctest SwiftApi
 
-  #  test "greets the world" do
-  #    assert SwiftApi.hello() == :world
-  #  end
-
   def identity_info do
     Poison.decode!("""
     {
