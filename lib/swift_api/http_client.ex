@@ -14,7 +14,7 @@ defmodule SwiftApi.HttpClient do
   end
 
   def get(url, headers \\ [], options \\ []) do
-    client = Tesla.client([{Tesla.Middleware.Headers, headers}])
+    client = build_client(headers, options)
 
     client
     |> Tesla.put(url, options)
@@ -22,7 +22,7 @@ defmodule SwiftApi.HttpClient do
   end
 
   def put(url, body, headers \\ [], options \\ []) do
-    client = Tesla.client([{Tesla.Middleware.Headers, headers}])
+    client = build_client(headers, options)
 
     client
     |> Tesla.put(url, body, options)
@@ -30,7 +30,7 @@ defmodule SwiftApi.HttpClient do
   end
 
   def post(url, body, headers \\ [], options \\ []) do
-    client = Tesla.client([{Tesla.Middleware.Headers, headers}])
+    client = build_client(headers, options)
 
     client
     |> Tesla.post(url, body, options)
@@ -38,11 +38,20 @@ defmodule SwiftApi.HttpClient do
   end
 
   def delete(url, headers \\ [], options \\ []) do
-    client = Tesla.client([{Tesla.Middleware.Headers, headers}])
+    client = build_client(headers, options)
 
     client
     |> Tesla.delete(url, options)
     |> tesla_response_to_app_response()
+  end
+
+  defp build_client(headers, options) do
+    timeout = Keyword.get(options, :timeout, 10_000)
+
+    Tesla.client([
+      {Tesla.Middleware.Headers, headers},
+      {Tesla.Middleware.Timeout, [timeout: timeout]}
+    ])
   end
 
   defp tesla_response_to_app_response(response_tuple) do
