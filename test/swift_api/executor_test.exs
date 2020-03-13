@@ -440,13 +440,13 @@ defmodule SwiftApi.ExecutorTest do
   end
 
   test "должен успешно авторизоваться" do
-    with_mock HTTPoison,
-      post: fn "https://example.ru/v3/auth/tokens", _body, _headers, hackney: _opts ->
+    with_mock SwiftApi.HttpClient,
+      post: fn "https://example.ru/v3/auth/tokens", _body, _headers, ssl_options: _opts ->
         {:ok,
-         %HTTPoison.Response{
+         %SwiftApi.HttpClient.Response{
            status_code: 200,
            body: identity_info(),
-           headers: [{"X-Subject-Token", "token_example"}]
+           headers: [{"x-subject-token", "token_example"}]
          }}
       end do
       assert Executor.identify(
@@ -473,9 +473,9 @@ defmodule SwiftApi.ExecutorTest do
   end
 
   test "должен через три попытки выйти и вернуть ошибку" do
-    with_mock HTTPoison,
-      post: fn "https://example.ru/v3/auth/tokens", _body, _headers, hackney: _opts ->
-        {:ok, %HTTPoison.Response{status_code: 404}}
+    with_mock SwiftApi.HttpClient,
+      post: fn "https://example.ru/v3/auth/tokens", _body, _headers, ssl_options: _opts ->
+        {:ok, %SwiftApi.HttpClient.Response{status_code: 404}}
       end do
       assert Executor.identify(
                %SwiftApi.Client{
