@@ -48,16 +48,16 @@ defmodule SwiftApi.HttpClient do
   defp tesla_response_to_app_response(response_tuple) do
     case response_tuple do
       {:ok, %Tesla.Env{status: status, body: body, headers: headers}} ->
-        {:ok, %Response{status_code: status, body: body, headers: downcase_header_keys(headers)}}
+        {:ok, %Response{status_code: status, body: body, headers: downcase_headers_names(headers)}}
 
       {:error, reason} ->
         {:error, %Error{reason: reason}}
     end
   end
 
-  # Функция преобразования названия ключей в нижний регистр, чтобы уменьшить зависимость от
+  # Функция преобразования названий заголовков в нижний регистр, чтобы уменьшить зависимость от
   # особенностей используемых http клиентов
-  defp downcase_header_keys(headers) do
+  defp downcase_headers_names(headers) do
     Enum.map(headers, fn {key, value} ->
       {String.downcase(key), value}
     end)
