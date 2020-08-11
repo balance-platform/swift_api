@@ -17,8 +17,15 @@ defmodule SwiftApi.HttpClient do
     client = build_client(headers, options)
 
     client
-    |> Tesla.put(url, options)
+    |> Tesla.get(url, options)
     |> tesla_response_to_app_response()
+  end
+
+  def head(url, headers \\ [], options \\ []) do
+    client = build_client(headers, options)
+
+    client
+    |> Tesla.head(url, options)
   end
 
   def put(url, body, headers \\ [], options \\ []) do

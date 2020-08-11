@@ -4,6 +4,7 @@ defmodule SwiftApi.Client do
   defstruct user_name: nil,
             password: nil,
             domain_id: nil,
+            domain_name: nil,
             url: nil,
             project_id: nil,
             ca_certificate_path: nil,

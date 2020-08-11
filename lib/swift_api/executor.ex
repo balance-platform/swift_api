@@ -64,7 +64,7 @@ defmodule SwiftApi.Executor do
                 name: client.user_name,
                 password: client.password,
                 domain: %{
-                  id: client.domain_id
+                  name: client.domain_name
                 }
               }
             }
@@ -123,6 +123,19 @@ defmodule SwiftApi.Executor do
   прочитать детали аккаунта
   """
   def account_details(client), do: get(client, "")
+
+  def head(client, path) do
+    case SwiftApi.IdentityTokenWorker.get_swift_url() do
+      nil ->
+        case identify(client, 0) do
+          {:ok, _} -> _head(client, SwiftApi.IdentityTokenWorker.get_swift_url(), path)
+          fail -> fail
+        end
+
+      swift_url ->
+        _head(client, swift_url, path)
+    end
+  end
 
   @doc """
   прочитать файл из хранилища
@@ -282,6 +295,30 @@ defmodule SwiftApi.Executor do
       |> String.downcase()
 
     {temp_url_sig, temp_url_expires}
+  end
+
+  # path должен быть в формате "контейнер/путь", т.е. начинаться НЕ со слэша
+  defp _head(_client, swift_url, path) do
+    final_url = "#{swift_url}/#{path}"
+    container = String.split(path, "/") |> Enum.at(0)
+
+    headers = [
+      {"accept", "application/json"},
+      {"x-auth-token", SwiftApi.IdentityTokenWorker.get_token()}
+    ]
+
+    case HttpClient.head(final_url, headers, []) do
+      {:ok, response = %Tesla.Env{status: status_code, headers: headers}}
+      when status_code == 200 or status_code == 201 or status_code == 202 ->
+        # из заголовка сохраняем ключ генерации временных ссылок
+        {:ok, headers}
+
+      {:ok, response} ->
+        {:error, response}
+
+      {:error, error} ->
+        {:error, error}
+    end
   end
 
   # path должен быть в формате "контейнер/путь", т.е. начинаться НЕ со слэша
