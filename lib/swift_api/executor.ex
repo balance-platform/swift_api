@@ -44,16 +44,17 @@ defmodule SwiftApi.Executor do
 
   при неудачной аутентификации - когда код статуса отличен от 200, 201, 202, через три таких попытки возвращается ошибка
   """
+  def identify(client), do: identify(client, 0)
   def identify(_client, 3), do: {:error, "Can't authorize"}
 
   def identify(client, tries) do
-    case identify(client) do
+    case identify_work(client) do
       {:ok, str} -> {:ok, str}
       {:error, _} -> identify(client, tries + 1)
     end
   end
 
-  defp identify(client) do
+  defp identify_work(client) do
     request_body =
       Poison.encode!(%{
         auth: %{
@@ -105,6 +106,16 @@ defmodule SwiftApi.Executor do
     end
   end
 
+  def get_n_minute_valid_token(client, n) do
+    now = Timex.now()
+    case SwiftApi.IdentityTokenWorker.check_time_validity(Timex.shift(now, minutes: -1 * n)) do
+      true -> SwiftApi.IdentityTokenWorker.get_token()
+      false ->
+        {:ok, _} = SwiftApi.Executor.identify(client)
+        SwiftApi.IdentityTokenWorker.get_token()
+    end
+  end
+
   @doc """
   прочитать детали контейнера
   """
@@ -127,7 +138,7 @@ defmodule SwiftApi.Executor do
   def head(client, path) do
     case SwiftApi.IdentityTokenWorker.get_swift_url() do
       nil ->
-        case identify(client, 0) do
+        case identify(client) do
           {:ok, _} -> _head(client, SwiftApi.IdentityTokenWorker.get_swift_url(), path)
           fail -> fail
         end
@@ -168,7 +179,7 @@ defmodule SwiftApi.Executor do
   def get(client, path) do
     case SwiftApi.IdentityTokenWorker.get_swift_url() do
       nil ->
-        case identify(client, 0) do
+        case identify(client) do
           {:ok, _} -> _get(client, SwiftApi.IdentityTokenWorker.get_swift_url(), path)
           fail -> fail
         end
@@ -210,7 +221,7 @@ defmodule SwiftApi.Executor do
   def put(client, path, content) do
     case SwiftApi.IdentityTokenWorker.get_swift_url() do
       nil ->
-        case identify(client, 0) do
+        case identify(client) do
           {:ok, _} -> _put(client, SwiftApi.IdentityTokenWorker.get_swift_url(), path, content)
           fail -> fail
         end
@@ -225,7 +236,7 @@ defmodule SwiftApi.Executor do
 
     case SwiftApi.IdentityTokenWorker.get_swift_url() do
       nil ->
-        case identify(client, 0) do
+        case identify(client) do
           {:ok, _} -> _delete(client, SwiftApi.IdentityTokenWorker.get_swift_url(), path)
           fail -> fail
         end
