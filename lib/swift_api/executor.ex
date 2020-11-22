@@ -14,24 +14,24 @@ defmodule SwiftApi.Executor do
   					  ca_certificate_path: ca_certificate_path,
   					  container: container_name}
 
-  container = "mytest"
+  container = "my_test"
   filename = "test_data2.html"
   SwiftApi.Executor.object_temp_url(client, container, filename, 50)
 
   # создадим контейнер
-  SwiftApi.Executor.create_container(client, "newc") # => {:ok, ""}
+  SwiftApi.Executor.create_container(client, "new_container") # => {:ok, ""}
   # посмотрим назначенный на него ключ генерации временных ссылок - это же ключ и всего аккаунта по умолчанию
-  SwiftApi.IdentityTokenWorker.get_temp_url_key("newc") # => "849df5780624b913595799ae01c90afe16a18a822b51b296"
+  SwiftApi.IdentityTokenWorker.get_temp_url_key("new_container") # => "849df5780624b913595799ae01c90afe16a18a822b51b296"
   SwiftApi.IdentityTokenWorker.get_temp_url_key() # => "849df5780624b913595799ae01c90afe16a18a822b51b296"
 
   # прочитаем некий существующий файл
-  SwiftApi.Executor.get(client, "mytest", "test_data.html") # => {:ok, "<html><body><p>Hello, test user!</p></body></html>"}
+  SwiftApi.Executor.get(client, "my_test", "test_data.html") # => {:ok, "<html><body><p>Hello, test user!</p></body></html>"}
   # положим в существующий контейнер некоторые данные
-  SwiftApi.Executor.put(client, "mytest", "test_data", "new data") # => {:ok, ""}
+  SwiftApi.Executor.put(client, "my_test", "test_data", "new data") # => {:ok, ""}
   # получим временную ссылку на этот новый файл
-  SwiftApi.Executor.object_temp_url(client, "mytest", "test_data", 50) # => object_temp_url # строка
+  SwiftApi.Executor.object_temp_url(client, "my_test", "test_data", 50) # => object_temp_url # строка
   # убедимся, что использовался ключ, заданный на этот ранее созданный контейнер
-  SwiftApi.IdentityTokenWorker.get_temp_url_key("mytest") # => "some_key"
+  SwiftApi.IdentityTokenWorker.get_temp_url_key("my_test") # => "some_key"
   ```
   """
 
@@ -108,8 +108,11 @@ defmodule SwiftApi.Executor do
 
   def get_n_minute_valid_token(client, n) do
     now = Timex.now()
+
     case SwiftApi.IdentityTokenWorker.check_time_validity(Timex.shift(now, minutes: -1 * n)) do
-      true -> SwiftApi.IdentityTokenWorker.get_token()
+      true ->
+        SwiftApi.IdentityTokenWorker.get_token()
+
       false ->
         {:ok, _} = SwiftApi.Executor.identify(client)
         SwiftApi.IdentityTokenWorker.get_token()
@@ -155,15 +158,22 @@ defmodule SwiftApi.Executor do
   - container - контейнер хранилища. при вызове с пустой строкой или nil в этом аргументе будет использован заданный client.container
   - file - имя файла в контейнере
   ```
-  SwiftApi.Executor.get(%SwiftApi.Client{...}, nil, "fname") # => {:ok, "some-data-aaaa"}
-  SwiftApi.Executor.get(%SwiftApi.Client{...}, "mytest", "test_data2.html") # => {:ok, "<html><body><p>user!!!!!111</p></body></html>"}
+  SwiftApi.Executor.get(%SwiftApi.Client{...}, nil, "first_name") # => {:ok, "some-data-aaaa", metadata}
+  SwiftApi.Executor.get(%SwiftApi.Client{...}, "my_test", "test_data2.html") # => {:ok, "<html><body><p>user!!!!!111</p></body></html>", metadata}
   ```
 
   **Важно!** контейнер не должен начинаться со слэша ("/")!
   """
-  def get(client, "", file), do: get(client, "#{client.container}/#{file}")
-  def get(client, nil, file), do: get(client, "#{client.container}/#{file}")
-  def get(client, container, file), do: get(client, "#{container}/#{file}")
+  def get(client, container, file) do
+    path =
+      case container do
+        "" -> "#{client.container}/#{file}"
+        nil -> "#{client.container}/#{file}"
+        _container_set -> "#{container}/#{file}"
+      end
+
+    get(client, path)
+  end
 
   @doc """
   прочитать файл из хранилища
@@ -171,7 +181,7 @@ defmodule SwiftApi.Executor do
   отличие от `get/3` в том, что вторым аргументом передаётся полный путь файла с хранилищем.
 
   ```
-  SwiftApi.Executor.get(client, "mytest/test_data2.html") # => {:ok, "<html><body><p>user!!!!!111</p></body></html>"}
+  SwiftApi.Executor.get(client, "my_test/test_data2.html") # => {:ok, "<html><body><p>user!!!!!111</p></body></html>"}
   ```
 
   **Важно!** путь к файлу не должен начинаться со слэша ("/")!
@@ -190,6 +200,53 @@ defmodule SwiftApi.Executor do
   end
 
   @doc """
+  Обновить метаданные файла в хранилище
+
+  - client - структура данных `SwiftApi.Client`
+  - container - контейнер хранилища. при вызове с пустой строкой или nil в этом аргументе будет использован заданный client.container
+  - file - имя файла в контейнере
+  - headers - метаданные
+  ```
+  SwiftApi.Executor.post(%SwiftApi.Client{...}, nil, "first_name", ["X-Object-Meta-{name}": value]) # => {:ok, [metadata]}
+
+  # Пример ответа:
+  {:ok,
+  [
+    {"content-length", "76"},
+    {"content-type", "text/html; charset=UTF-8"},
+    {"x-trans-id", "tx815c30837ddc4c6f89aac-005fb979ca"},
+    {"x-openstack-request-id", "tx815c30837ddc4c6f89aac-005fb979ca"},
+    {"date", "Sat, 21 Nov 2020 20:34:18 GMT"}
+  ]}
+  ```
+
+  **Важно!** контейнер не должен начинаться со слэша ("/")!
+  """
+  def post(client, container, file, headers) when is_list(headers) do
+    path =
+      case container do
+        "" -> "#{client.container}/#{file}"
+        nil -> "#{client.container}/#{file}"
+        _container_set -> "#{container}/#{file}"
+      end
+
+    post(client, path, headers)
+  end
+
+  def post(client, path, headers) do
+    case SwiftApi.IdentityTokenWorker.get_swift_url() do
+      nil ->
+        case identify(client) do
+          {:ok, _} -> _post(client, SwiftApi.IdentityTokenWorker.get_swift_url(), path, headers)
+          fail -> fail
+        end
+
+      swift_url ->
+        _post(client, swift_url, path, headers)
+    end
+  end
+
+  @doc """
   положить файл в хранилище
 
   - client - структура данных `SwiftApi.Client`
@@ -197,15 +254,22 @@ defmodule SwiftApi.Executor do
   - file - имя файла в контейнере
   - content - содержимое файла
   ```
-  SwiftApi.Executor.put(%SwiftApi.Client{...}, nil, "fname", "some_data") # => {:ok, ""}
-  SwiftApi.Executor.put(%SwiftApi.Client{...}, "mytest", "test_data2.html", "some_data") # => {:ok, ""}
+  SwiftApi.Executor.put(%SwiftApi.Client{...}, nil, "first_name", "some_data") # => {:ok, ""}
+  SwiftApi.Executor.put(%SwiftApi.Client{...}, "my_test", "test_data2.html", "some_data") # => {:ok, ""}
   ```
 
   **Важно!** контейнер не должен начинаться со слэша ("/")!
   """
-  def put(client, "", file, content), do: put(client, "#{client.container}/#{file}", content)
-  def put(client, nil, file, content), do: put(client, "#{client.container}/#{file}", content)
-  def put(client, container, file, content), do: put(client, "#{container}/#{file}", content)
+  def put(client, container, file, content) do
+    path =
+      case container do
+        "" -> "#{client.container}/#{file}"
+        nil -> "#{client.container}/#{file}"
+        _container_set -> "#{container}/#{file}"
+      end
+
+    put(client, path, content)
+  end
 
   @doc """
   положить файл в хранилище
@@ -213,7 +277,7 @@ defmodule SwiftApi.Executor do
   отличие от `put/4` в том, что вторым аргументом передаётся полный путь файла с хранилищем.
 
   ```
-  SwiftApi.Executor.put(client, "mytest/test_data2.html", "data") # => {:ok, ""}
+  SwiftApi.Executor.put(client, "my_test/test_data2.html", "data") # => {:ok, ""}
   ```
 
   **Важно!** путь к файлу не должен начинаться со слэша ("/")!
@@ -256,7 +320,7 @@ defmodule SwiftApi.Executor do
 
   ```
   SwiftApi.Worker.object_temp_url(client, container, filename, 60)
-  # => "https://object.someurl.pro/v1/AUTH_somehash/mytest1_container1/test.txt?temp_url_sig=efa3e83eaa81a71d47350593d353f61af48506ba&temp_url_expires=1552462575"
+  # => "https://object.someurl.pro/v1/AUTH_somehash/my_test1_container1/test.txt?temp_url_sig=efa3e83eaa81a71d47350593d353f61af48506ba&temp_url_expires=1552462575"
   ```
   """
   def object_temp_url(client, file, ttl), do: object_temp_url(client, client.container, file, ttl)
@@ -292,7 +356,7 @@ defmodule SwiftApi.Executor do
 
   - ttl - время жизни ссылки, например, 60*60*24 = 86400 = 1 день
   - key - используемый ключ, в частности заголовок "X-Container-Meta-Temp-URL-Key"
-  - url - путь до объекта, например: "/v1/AUTH_b31fb563c0b644c8a6a6c1da43258e88/mytest_container/test.txt"
+  - url - путь до объекта, например: "/v1/AUTH_b31fb563c0b644c8a6a6c1da43258e88/my_test_container/test.txt"
   - method - тип запроса, по умолчанию GET
 
   в результате вернётся пара `{temp_url_sig, temp_url_expires}`
@@ -311,7 +375,6 @@ defmodule SwiftApi.Executor do
   # path должен быть в формате "контейнер/путь", т.е. начинаться НЕ со слэша
   defp _head(_client, swift_url, path) do
     final_url = "#{swift_url}/#{path}"
-    container = String.split(path, "/") |> Enum.at(0)
 
     headers = [
       {"accept", "application/json"},
@@ -319,9 +382,8 @@ defmodule SwiftApi.Executor do
     ]
 
     case HttpClient.head(final_url, headers, []) do
-      {:ok, response = %Tesla.Env{status: status_code, headers: headers}}
+      {:ok, %SwiftApi.HttpClient.Response{status_code:status_code, headers: headers}}
       when status_code == 200 or status_code == 201 or status_code == 202 ->
-        # из заголовка сохраняем ключ генерации временных ссылок
         {:ok, headers}
 
       {:ok, response} ->
@@ -343,11 +405,12 @@ defmodule SwiftApi.Executor do
     ]
 
     case HttpClient.get(final_url, headers, []) do
-      {:ok, %HttpClient.Response{status_code: status_code, body: body, headers: headers}}
+      {:ok, %HttpClient.Response{status_code: status_code, body: body, headers: metadata}}
       when status_code == 200 or status_code == 201 or status_code == 202 ->
-        # из заголовка сохраняем ключ генерации временных ссылок
         set_temp_url_key(container, headers)
-        parse_json_body(body)
+        {:ok, data} = parse_json_body(body)
+
+        {:ok, data, metadata}
 
       {:ok, response} ->
         {:error, response}
@@ -365,11 +428,13 @@ defmodule SwiftApi.Executor do
     # вызываем детали контейнера/аккаунта для получения информации о ключе генерации временной ссылки
     check_details_for_temp_key(client, container)
 
-    headers = [
-      {"accept", "application/json"},
-      {"x-auth-token", SwiftApi.IdentityTokenWorker.get_token()},
-      {"x-container-meta-temp-url-key", SwiftApi.IdentityTokenWorker.get_temp_url_key(container)}
-    ]
+    headers =
+      [
+        {"accept", "application/json"},
+        {"x-auth-token", SwiftApi.IdentityTokenWorker.get_token()},
+        {"x-container-meta-temp-url-key",
+         SwiftApi.IdentityTokenWorker.get_temp_url_key(container)}
+      ]
 
     case HttpClient.put(final_url, content, headers, []) do
       {:ok, %HttpClient.Response{status_code: status_code, body: body} = response} ->
@@ -378,6 +443,27 @@ defmodule SwiftApi.Executor do
         else
           {:error, response}
         end
+
+      {:ok, response} ->
+        {:error, response}
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  # path должен быть в формате "контейнер/путь", т.е. начинаться НЕ со слэша
+  defp _post(client, swift_url, path, additional_meta_headers) do
+    final_url = "#{swift_url}/#{path}"
+
+    metadata_for_save =
+      [
+        {"x-auth-token", SwiftApi.IdentityTokenWorker.get_token()},
+      ] ++ additional_meta_headers
+
+    case HttpClient.post(final_url, "", metadata_for_save) do
+      {:ok, %HttpClient.Response{status_code: 202, body: body, headers: object_metadata} = response} ->
+        {:ok, object_metadata}
 
       {:ok, response} ->
         {:error, response}
@@ -401,7 +487,7 @@ defmodule SwiftApi.Executor do
     case HttpClient.delete(final_url, headers, []) do
       {:ok, %HttpClient.Response{status_code: 204} = response} -> {:ok, response}
       {:error, error} -> {:error, error}
-      {:ok, http_resposne_struct} -> {:error, http_resposne_struct}
+      {:ok, http_response_struct} -> {:error, http_response_struct}
     end
   end
 
