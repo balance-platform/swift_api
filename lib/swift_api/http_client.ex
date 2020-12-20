@@ -26,6 +26,7 @@ defmodule SwiftApi.HttpClient do
 
     client
     |> Tesla.head(url, options)
+    |> tesla_response_to_app_response()
   end
 
   def put(url, body, headers \\ [], options \\ []) do

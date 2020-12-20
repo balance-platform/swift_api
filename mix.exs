@@ -25,6 +25,7 @@ defmodule SwiftApi.MixProject do
       {:tesla, "~> 1.3.0"},
       {:poison, "~> 3.1"},
       {:timex, "~> 3.1"},
+      {:gen_stage, "~> 1.0"},
       {:mock, "~> 0.3.0", only: :test},
       {:credo, ">= 0.0.0", only: :dev}
     ]

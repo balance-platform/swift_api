@@ -382,7 +382,7 @@ defmodule SwiftApi.Executor do
     ]
 
     case HttpClient.head(final_url, headers, []) do
-      {:ok, %SwiftApi.HttpClient.Response{status_code:status_code, headers: headers}}
+      {:ok, %SwiftApi.HttpClient.Response{status_code: status_code, headers: headers}}
       when status_code == 200 or status_code == 201 or status_code == 202 ->
         {:ok, headers}
 
@@ -392,6 +392,42 @@ defmodule SwiftApi.Executor do
       {:error, error} ->
         {:error, error}
     end
+  end
+
+  def containers_list(client) do
+    container_get(client, "")
+  end
+
+  def container_get(client, container, params \\ %{}) do
+    case SwiftApi.IdentityTokenWorker.get_swift_url() do
+      nil ->
+        case identify(client) do
+          {:ok, _} -> container_get(client, SwiftApi.IdentityTokenWorker.get_swift_url(), container, params)
+          fail -> fail
+        end
+
+      swift_url -> container_get(client, swift_url, container, params)
+    end
+  end
+
+  def container_get(client, swift_url, container, params) do
+    new_params = for {k, v} <- params, !is_nil(v), into: %{}, do: {k, v}
+
+    final_url = "#{swift_url}/#{container}?#{URI.encode_query new_params}"
+
+    headers = [
+      {"accept", "application/json"},
+      {"x-auth-token", SwiftApi.IdentityTokenWorker.get_token()}
+    ]
+
+    case HttpClient.get(final_url, headers, []) do
+      {:ok, %HttpClient.Response{status_code: status_code, body: body, headers: metadata}}
+        when status_code == 200 or status_code == 204 ->
+        {:ok, data} = parse_json_body(body)
+      {:ok, response} -> {:error, response}
+      {:error, error} -> {:error, error}
+    end
+
   end
 
   # path должен быть в формате "контейнер/путь", т.е. начинаться НЕ со слэша
